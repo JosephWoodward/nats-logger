@@ -39,8 +39,11 @@ func main() {
 			defer natsConn.Close()
 			closer := make(chan struct{}, 2)
 
-			go copy(closer, natsConn, localConn)
-			go copy(closer, localConn, natsConn)
+			go copy(closer, natsConn, io.TeeReader(localConn, logger("server")))
+			go copy(closer, localConn, io.TeeReader(localConn, logger("client")))
+
+			//go copy(closer, natsConn, localConn)
+			//go copy(closer, localConn, natsConn)
 
 			<-closer
 			log.Println("Connection complete", localConn.RemoteAddr())
@@ -50,31 +53,14 @@ func main() {
 
 }
 
-func myCopy(closer chan struct{}, dst io.Writer, src io.Reader) {
-	closer <- struct{}{} // connection is closed, send signal to stop proxy
-	io.Copy(dst, src)
+type logger string
+
+func (lh logger) Write(b []byte) (int, error) {
+	fmt.Printf(string(b))
+	return len(b), nil
 }
 
 func copy(closer chan struct{}, dst io.Writer, src io.Reader) {
-
-	//tee := io.TeeReader(src, dst)
-	//reader2, _ := ioutil.ReadAll(tee)
-	//fmt.Println(string(reader2))
-
-	//buf := &bytes.Buffer{}
-	//tee := io.TeeReader(src, dst)
-	//
-	//reader2, _ := ioutil.ReadAll(buf)
-	//fmt.Println(string(reader2))
-
-	//netData, err := bufio.NewReader(src).ReadString('\n')
-	//if err != nil {
-	//	fmt.Println(err)
-	//	return
-	//}
-	//
-	//fmt.Print(netData)
-
 	_, _ = io.Copy(dst, src)
 	closer <- struct{}{} // connection is closed, send signal to stop proxy
 }
